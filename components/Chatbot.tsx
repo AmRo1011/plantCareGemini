@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { startChatSession, sendMessage } from '../services/geminiService';
@@ -7,6 +6,8 @@ import ChatIcon from './icons/ChatIcon';
 
 interface ChatbotProps {
   plantContext: PlantIdentificationResult | null;
+  initialMessages: ChatMessage[];
+  onChatUpdate: (messages: ChatMessage[]) => void;
 }
 
 const TypingIndicator = () => (
@@ -18,13 +19,14 @@ const TypingIndicator = () => (
 );
 
 
-const Chatbot: React.FC<ChatbotProps> = ({ plantContext }) => {
+const Chatbot: React.FC<ChatbotProps> = ({ plantContext, initialMessages, onChatUpdate }) => {
   const { t, language } = useContext(AppContext);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const isInitialMount = useRef(true);
 
   useEffect(() => {
     const systemInstruction = language === 'ar' 
@@ -33,11 +35,12 @@ const Chatbot: React.FC<ChatbotProps> = ({ plantContext }) => {
     
     startChatSession(systemInstruction);
 
-    const initialMessage = plantContext 
-      ? t('chatWithContext', { plantName: plantContext.commonName }) 
-      : t('chatInitial');
-
-    setMessages([{ role: 'assistant', content: initialMessage }]);
+    if (messages.length === 0) {
+      const initialMessageText = plantContext 
+        ? t('chatWithContext', { plantName: plantContext.commonName }) 
+        : t('chatInitial');
+      setMessages([{ role: 'assistant', content: initialMessageText }]);
+    }
   }, [plantContext, t, language]);
 
 
@@ -45,7 +48,15 @@ const Chatbot: React.FC<ChatbotProps> = ({ plantContext }) => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
-  }, [messages, isTyping]);
+    // Report message updates to parent, skipping the very first render
+    if (isInitialMount.current) {
+        isInitialMount.current = false;
+        return;
+    }
+    if (onChatUpdate) {
+        onChatUpdate(messages);
+    }
+  }, [messages, isTyping, onChatUpdate]);
   
   const handleSendMessage = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -60,7 +71,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ plantContext }) => {
     try {
         let messageToSend = input;
         // Add context for the first message after identification
-        if (plantContext && messages.length === 1) {
+        if (plantContext && messages.length <= 1) {
             messageToSend = `I have a ${plantContext.commonName} (${plantContext.scientificName}). My question is: ${input}`;
         }
 
@@ -81,7 +92,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ plantContext }) => {
         <ChatIcon className="w-8 h-8 text-green-primary" />
         <div>
           <h2 className="text-lg font-bold text-gray-800">{t('chatHeader')}</h2>
-          <p className="text-sm text-gray-500">{t('chatSubheader')}</p>
+          <p className="text-sm text-gray-500">{plantContext ? plantContext.commonName : t('chatSubheader')}</p>
         </div>
       </div>
       <div ref={chatContainerRef} className="flex-1 p-4 overflow-y-auto space-y-4 flex flex-col">

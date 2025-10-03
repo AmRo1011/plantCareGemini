@@ -1,4 +1,3 @@
-
 export interface PlantIdentificationResult {
   commonName: string;
   scientificName: string;
@@ -15,7 +14,16 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface HistoryItem {
+  id: number;
+  date: string;
+  image: string;
+  plant: PlantIdentificationResult;
+  chat: ChatMessage[];
+}
+
 export enum View {
   IDENTIFY = 'IDENTIFY',
   CHAT = 'CHAT',
+  HISTORY = 'HISTORY',
 }

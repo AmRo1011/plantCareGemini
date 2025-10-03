@@ -1,13 +1,13 @@
-
 import React, { useState, useCallback, useContext } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUsageTracker } from '../hooks/useUsageTracker';
 import { identifyPlant } from '../services/geminiService';
 import type { PlantIdentificationResult } from '../types';
 import PlantIcon from './icons/PlantIcon';
+import IdentificationResultCard from './IdentificationResultCard';
 
 interface PlantIdentifierProps {
-  onIdentificationComplete: (result: PlantIdentificationResult) => void;
+  onIdentificationComplete: (result: PlantIdentificationResult, image: string) => void;
 }
 
 const Spinner: React.FC<{ message: string }> = ({ message }) => (
@@ -45,27 +45,23 @@ const PlantIdentifier: React.FC<PlantIdentifierProps> = ({ onIdentificationCompl
   };
 
   const handleIdentify = useCallback(async () => {
-    if (!file || isLimitReached) return;
+    if (!file || isLimitReached || !imagePreview) return;
 
     setIsLoading(true);
     setError(null);
     setResult(null);
 
     try {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onloadend = async () => {
-            const base64String = (reader.result as string).split(',')[1];
-            const identifiedResult = await identifyPlant(base64String, file.type, language);
-            setResult(identifiedResult);
-            recordUsage();
-        };
+        const base64String = imagePreview.split(',')[1];
+        const identifiedResult = await identifyPlant(base64String, file.type, language);
+        setResult(identifiedResult);
+        recordUsage();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('error'));
     } finally {
       setIsLoading(false);
     }
-  }, [file, isLimitReached, recordUsage, t, language]);
+  }, [file, isLimitReached, recordUsage, t, language, imagePreview]);
 
   const resetState = () => {
     setImagePreview(null);
@@ -89,29 +85,15 @@ const PlantIdentifier: React.FC<PlantIdentifierProps> = ({ onIdentificationCompl
         </div>
       );
     }
-    if (result) {
+    if (result && imagePreview) {
       return (
-        <div className="bg-white rounded-2xl shadow-lg p-6 w-full max-w-md mx-auto text-center animate-fade-in">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">{t('resultHeader')}</h2>
-          {imagePreview && <img src={imagePreview} alt="Identified plant" className="w-full h-56 object-cover rounded-lg mb-4" />}
-          <div className="text-left space-y-3">
-            <p><strong>{t('commonName')}:</strong> {result.commonName}</p>
-            <p><strong>{t('scientificName')}:</strong> <em className="italic">{result.scientificName}</em></p>
-            <p><strong>{t('confidence')}:</strong> {Math.round(result.confidenceScore * 100)}%</p>
-            <div>
-              <h3 className="font-bold mt-4 mb-2">{t('careGuide')}</h3>
-              <ul className="list-disc list-inside space-y-1 text-gray-600">
-                <li><strong>{t('watering')}:</strong> {result.careGuide.watering}</li>
-                <li><strong>{t('sunlight')}:</strong> {result.careGuide.sunlight}</li>
-                <li><strong>{t('soil')}:</strong> {result.careGuide.soil}</li>
-              </ul>
-            </div>
-          </div>
+        <div>
+          <IdentificationResultCard result={result} image={imagePreview} />
            <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-center">
              <button onClick={resetState} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-6 rounded-full transition-colors">
-                {t('identify')}
+                {t('identify')} Another
             </button>
-            <button onClick={() => onIdentificationComplete(result)} className="bg-green-primary hover:bg-green-600 text-white font-bold py-3 px-6 rounded-full transition-colors">
+            <button onClick={() => onIdentificationComplete(result, imagePreview)} className="bg-green-primary hover:bg-green-600 text-white font-bold py-3 px-6 rounded-full transition-colors">
               {t('askAboutThisPlant')}
             </button>
           </div>
@@ -134,7 +116,7 @@ const PlantIdentifier: React.FC<PlantIdentifierProps> = ({ onIdentificationCompl
                     <img src={imagePreview} alt="Plant preview" className="w-full h-56 object-cover rounded-lg mb-4"/>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
                         <label className="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-6 rounded-full transition-colors">
-                            <span>{t('choosePhoto')}</span>
+                            <span>Change Photo</span>
                             <input type="file" accept="image/png, image/jpeg, image/webp" onChange={handleFileChange} className="hidden" />
                         </label>
                         <button onClick={handleIdentify} className="bg-green-primary hover:bg-green-600 text-white font-bold py-3 px-6 rounded-full transition-colors">
@@ -144,7 +126,7 @@ const PlantIdentifier: React.FC<PlantIdentifierProps> = ({ onIdentificationCompl
                 </>
             ) : (
                 <>
-                    <PlantIcon className="w-20 h-20 text-green-accent mx-auto mb-4" />
+                    <PlantIcon className="w-20 h-20 mx-auto mb-4" />
                     <h2 className="text-2xl font-bold text-gray-800">{t('uploadHeader')}</h2>
                     <p className="text-gray-600 mt-2 mb-6">{t('uploadSubheader')}</p>
                     <label className="cursor-pointer bg-green-primary hover:bg-green-600 text-white font-bold py-3 px-8 rounded-full transition-colors inline-block">
